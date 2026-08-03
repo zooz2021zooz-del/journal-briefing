@@ -3,7 +3,7 @@ import secrets
 
 from flask import Flask, render_template, request, redirect, url_for, session
 
-from paper_search import run_search, MAX_KEYWORDS
+from paper_search import run_search, save_web_results, fetch_web_history, MAX_KEYWORDS, _supabase_client
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
@@ -60,6 +60,7 @@ def search():
         error = "연구실 소개를 입력해주세요."
     else:
         papers, warnings = run_search(keywords, lab_profile, days_back, min_score)
+        save_web_results(papers, lab_name)
 
     return render_template(
         "results.html",
@@ -68,7 +69,14 @@ def search():
         warnings=warnings,
         error=error,
         keywords=keywords,
+        history_enabled=bool(_supabase_client),
     )
+
+
+@app.route("/mypage")
+def mypage():
+    history = fetch_web_history()
+    return render_template("mypage.html", history=history, history_enabled=bool(_supabase_client))
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 """
 논문 검색 + 관련성 판단 로직 (test_agent1.py의 핵심 로직을 웹 요청용으로 재사용)
-DB 저장 없이, 요청마다 실시간으로 검색/판단해서 결과를 반환합니다.
+검색 결과는 화면에 보여줌과 동시에, 설정돼 있으면 Supabase의 web_papers 테이블에도 누적 저장합니다.
+(기존 자동발송 파이프라인이 쓰는 papers 테이블과는 별도)
 """
 
 import os
@@ -8,8 +9,15 @@ from datetime import datetime, timedelta
 
 import requests
 from anthropic import Anthropic
+from supabase import create_client
 
 OPENALEX_API_KEY = os.environ.get("OPENALEX_API_KEY")
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+
+_supabase_client = None
+if SUPABASE_URL and SUPABASE_KEY:
+    _supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 BROWSER_HEADERS = {
     "User-Agent": (
@@ -141,6 +149,58 @@ def parse_reason(text):
         return ""
     end = summary_idx if summary_idx != -1 else len(text)
     return text[reason_idx + len("이유:"):end].strip()
+
+
+def save_web_results(papers, lab_name):
+    """검색된 논문들을 web_papers 테이블에 누적 저장합니다 (link 기준 중복 무시)."""
+    if not _supabase_client or not papers:
+        return
+
+    rows = [
+        {
+            "title": p["title"],
+            "authors": p["authors"],
+            "abstract": p["abstract"],
+            "journal": p["journal"],
+            "publication_date": p["publication_date"],
+            "link": p["link"],
+            "source": p["source"],
+            "relevance_score": p["score"],
+            "relevance_reason": p["reason"],
+            "summary_ko": p["summary_ko"],
+            "lab_keyword": p.get("matched_keyword", ""),
+            "lab_name": lab_name,
+        }
+        for p in papers
+        if p.get("link")
+    ]
+    if not rows:
+        return
+
+    try:
+        _supabase_client.table("web_papers").upsert(
+            rows, on_conflict="link", ignore_duplicates=True
+        ).execute()
+    except Exception as e:
+        print(f"[경고] web_papers 저장 실패: {e}")
+
+
+def fetch_web_history(limit=200):
+    """마이페이지에 보여줄 누적 검색 기록을 최신순으로 가져옵니다."""
+    if not _supabase_client:
+        return []
+    try:
+        response = (
+            _supabase_client.table("web_papers")
+            .select("*")
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return response.data
+    except Exception as e:
+        print(f"[경고] web_papers 조회 실패: {e}")
+        return []
 
 
 def run_search(keywords, lab_profile, days_back=7, min_score=70):

@@ -9,7 +9,8 @@
     <p class="warning">⚠️ {{ w }}</p>
   {% endfor %}
 
-  <p>{{ lab_name }} 기준으로 <strong>{{ papers|length }}건</strong>의 관련 논문을 찾았어요.</p>
+  <p>{{ lab_name }} 기준으로 <strong>{{ papers|length }}건</strong>의 관련 논문을 찾았어요.
+  {% if history_enabled and papers %}<a href="{{ url_for('mypage') }}">마이페이지에도 저장됐어요 →</a>{% endif %}</p>
 
   {% if papers %}
   <div class="card-actions" style="margin-bottom:20px;">

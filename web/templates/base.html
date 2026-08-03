@@ -121,7 +121,13 @@
 <div class="wrap">
   <div class="top-bar">
     <h1>📚 랩실 논문 브리핑</h1>
-    {% if session.get('authed') %}<a href="{{ url_for('logout') }}">로그아웃</a>{% endif %}
+    {% if session.get('authed') %}
+    <span>
+      <a href="{{ url_for('mypage') }}">마이페이지</a>
+      &nbsp;·&nbsp;
+      <a href="{{ url_for('logout') }}">로그아웃</a>
+    </span>
+    {% endif %}
   </div>
   {% block content %}{% endblock %}
 </div>

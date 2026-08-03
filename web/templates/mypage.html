@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block content %}
+<p class="subtitle"><a href="{{ url_for('index') }}">&larr; 검색으로 돌아가기</a></p>
+
+{% if not history_enabled %}
+  <p class="warning">⚠️ SUPABASE_URL / SUPABASE_KEY가 설정되어 있지 않아 마이페이지 기록을 쓸 수 없어요.</p>
+{% elif not history %}
+  <p>아직 저장된 검색 기록이 없어요. 검색을 먼저 해보세요.</p>
+{% else %}
+  <p>지금까지 누적된 논문 <strong>{{ history|length }}건</strong>이에요. 원하는 항목을 선택해서 공유할 수 있어요.</p>
+
+  <div class="card-actions" style="margin-bottom:16px;">
+    <button type="button" class="btn btn-secondary" id="select-all-btn">전체 선택</button>
+    <button type="button" class="btn" id="share-selected-btn">📤 선택 항목 공유</button>
+    <a class="btn btn-secondary" id="mailto-selected-btn" href="#">✉️ 선택 항목 메일로</a>
+  </div>
+
+  {% for p in history %}
+  <div class="card {% if p.relevance_score and p.relevance_score >= 85 %}top{% endif %}"
+       data-title="{{ p.title }}"
+       data-link="{{ p.link }}"
+       data-summary="{{ p.summary_ko or '' }}">
+    <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;">
+      <input type="checkbox" class="select-paper" style="margin-top:6px;">
+      <span style="flex:1;">
+        <p class="meta">
+          {% if p.relevance_score and p.relevance_score >= 85 %}<span class="badge">⭐ 강력추천</span>{% endif %}
+          관련도 {{ p.relevance_score }}점 · {{ p.journal }} · {{ p.publication_date }} · {{ p.lab_name }}
+        </p>
+        <h3><a href="{{ p.link }}" target="_blank" rel="noopener" onclick="event.stopPropagation()">{{ p.title }}</a></h3>
+        <p class="authors">저자: {{ p.authors }}</p>
+        <p class="summary">{{ p.summary_ko }}</p>
+      </span>
+    </label>
+  </div>
+  {% endfor %}
+{% endif %}
+
+<script>
+function selectedCards() {
+  return Array.from(document.querySelectorAll('.card')).filter(function (card) {
+    var cb = card.querySelector('.select-paper');
+    return cb && cb.checked;
+  });
+}
+function paperText(card) {
+  return `${card.dataset.title}\n\n${card.dataset.summary}\n\n${card.dataset.link}`;
+}
+
+var selectAllBtn = document.getElementById('select-all-btn');
+if (selectAllBtn) {
+  selectAllBtn.addEventListener('click', function () {
+    var boxes = document.querySelectorAll('.select-paper');
+    var allChecked = Array.from(boxes).every(function (b) { return b.checked; });
+    boxes.forEach(function (b) { b.checked = !allChecked; });
+  });
+}
+
+var shareBtn = document.getElementById('share-selected-btn');
+if (shareBtn) {
+  shareBtn.addEventListener('click', function () {
+    var cards = selectedCards();
+    if (!cards.length) { alert('공유할 항목을 먼저 선택해주세요.'); return; }
+    var text = cards.map(paperText).join('\n\n---\n\n');
+    if (navigator.share) {
+      navigator.share({ title: '논문 브리핑 공유', text: text }).catch(function () {});
+    } else {
+      navigator.clipboard.writeText(text).then(function () {
+        alert('공유 기능을 지원하지 않는 브라우저라, 대신 내용을 클립보드에 복사했어요.');
+      });
+    }
+  });
+}
+
+var mailBtn = document.getElementById('mailto-selected-btn');
+if (mailBtn) {
+  mailBtn.addEventListener('click', function (e) {
+    var cards = selectedCards();
+    if (!cards.length) {
+      e.preventDefault();
+      alert('공유할 항목을 먼저 선택해주세요.');
+      return;
+    }
+    var text = cards.map(paperText).join('\n\n---\n\n');
+    mailBtn.href = 'mailto:?subject=' + encodeURIComponent('논문 브리핑 공유 (' + cards.length + '건)') + '&body=' + encodeURIComponent(text);
+  });
+}
+</script>
+{% endblock %}
