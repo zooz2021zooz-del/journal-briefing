@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<p class="subtitle">비공개 페이지예요. 비밀번호를 입력해주세요.</p>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+<form method="post">
+  <label for="password">비밀번호</label>
+  <input type="password" id="password" name="password" autofocus required>
+  <button type="submit">입장하기</button>
+</form>
+{% endblock %}

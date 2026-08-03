@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}랩실 논문 브리핑{% endblock %}</title>
+<style>
+  :root {
+    --bg: #f6f7fb;
+    --card: #ffffff;
+    --text: #1a1a1a;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --accent: #4A90D9;
+    --accent-dark: #3574b3;
+    --top: #D4A017;
+    --top-bg: #FFF9EC;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+  .wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 32px 20px 60px;
+  }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+  label { display: block; font-weight: 600; font-size: 14px; margin: 18px 0 6px; }
+  input[type=text], input[type=password], input[type=number], textarea, select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    background: var(--card);
+    color: var(--text);
+  }
+  textarea { min-height: 100px; resize: vertical; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .row { display: flex; gap: 16px; }
+  .row > div { flex: 1; }
+  button, .btn {
+    display: inline-block;
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    margin-top: 20px;
+  }
+  button:hover, .btn:hover { background: var(--accent-dark); }
+  .btn-secondary {
+    background: var(--card);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+  .btn-secondary:hover { background: #eef4fb; }
+  .card {
+    background: var(--card);
+    border-left: 4px solid var(--accent);
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 18px;
+  }
+  .card.top { border-left-color: var(--top); background: var(--top-bg); }
+  .badge {
+    display: inline-block;
+    background: var(--top);
+    color: white;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-right: 6px;
+  }
+  .meta { font-size: 12px; color: var(--muted); margin: 0 0 6px; }
+  .card h3 { margin: 4px 0; font-size: 16px; }
+  .card h3 a { color: var(--text); text-decoration: none; }
+  .card h3 a:hover { text-decoration: underline; }
+  .authors { font-size: 13px; color: #555; margin: 4px 0; }
+  .summary {
+    font-size: 14px;
+    background: #f7f9fb;
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 6px;
+  }
+  .card-actions { margin-top: 10px; display: flex; gap: 8px; }
+  .card-actions a, .card-actions button {
+    margin-top: 0;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .error { color: #c0392b; background: #fdecea; padding: 10px 14px; border-radius: 6px; font-size: 14px; }
+  .warning { color: #8a6d3b; background: #fcf8e3; padding: 8px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 8px; }
+  .top-bar { display: flex; justify-content: space-between; align-items: center; }
+  .top-bar a { color: var(--muted); font-size: 13px; text-decoration: none; }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181d;
+      --card: #1f222a;
+      --text: #e8e8e8;
+      --muted: #9aa1ac;
+      --border: #333844;
+      --top-bg: #2a2416;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top-bar">
+    <h1>📚 랩실 논문 브리핑</h1>
+    {% if session.get('authed') %}<a href="{{ url_for('logout') }}">로그아웃</a>{% endif %}
+  </div>
+  {% block content %}{% endblock %}
+</div>
+</body>
+</html>

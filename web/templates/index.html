@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<p class="subtitle">연구실 정보를 입력하면, 최근 논문을 실시간으로 찾아서 관련도를 판단해드려요.</p>
+
+<form method="post" action="{{ url_for('search') }}" id="search-form">
+  <label for="lab_name">연구실 이름</label>
+  <input type="text" id="lab_name" name="lab_name" placeholder="예: 성균관대 OOO 교수 연구실">
+
+  <label for="keywords">검색 키워드 (한 줄에 하나씩, 최대 {{ max_keywords }}개)</label>
+  <textarea id="keywords" name="keywords" placeholder="예:&#10;triboelectric nanogenerator&#10;wearable biosignal sensor" required></textarea>
+  <p class="hint">영어 키워드를 쓰면 OpenAlex 검색이 더 잘 돼요.</p>
+
+  <label for="lab_profile">연구실 소개 (관련성 판단에 사용돼요)</label>
+  <textarea id="lab_profile" name="lab_profile" placeholder="연구실의 주요 연구 분야, 관심사를 자유롭게 설명해주세요." required></textarea>
+
+  <div class="row">
+    <div>
+      <label for="days_back">최근 며칠</label>
+      <select id="days_back" name="days_back">
+        <option value="3">3일</option>
+        <option value="7" selected>7일</option>
+        <option value="14">14일</option>
+        <option value="30">30일</option>
+      </select>
+    </div>
+    <div>
+      <label for="min_score">최소 관련도 점수</label>
+      <select id="min_score" name="min_score">
+        <option value="50">50점</option>
+        <option value="60">60점</option>
+        <option value="70" selected>70점</option>
+        <option value="80">80점</option>
+      </select>
+    </div>
+  </div>
+
+  <button type="submit" id="submit-btn">검색 시작</button>
+  <p class="hint" id="loading-hint" style="display:none;">검색 중이에요. 논문 수에 따라 1~2분 정도 걸릴 수 있어요...</p>
+</form>
+
+<script>
+document.getElementById('search-form').addEventListener('submit', function () {
+  document.getElementById('submit-btn').disabled = true;
+  document.getElementById('submit-btn').innerText = '검색 중...';
+  document.getElementById('loading-hint').style.display = 'block';
+});
+</script>
+{% endblock %}

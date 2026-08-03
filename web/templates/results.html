@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+<p class="subtitle"><a href="{{ url_for('index') }}">&larr; 다시 검색하기</a></p>
+
+{% if error %}
+  <p class="error">{{ error }}</p>
+{% else %}
+  {% for w in warnings %}
+    <p class="warning">⚠️ {{ w }}</p>
+  {% endfor %}
+
+  <p>{{ lab_name }} 기준으로 <strong>{{ papers|length }}건</strong>의 관련 논문을 찾았어요.</p>
+
+  {% if papers %}
+  <div class="card-actions" style="margin-bottom:20px;">
+    <button type="button" class="btn" id="share-all-btn">📤 전체 결과 공유하기</button>
+    <a class="btn btn-secondary" id="mailto-all-btn" href="#">✉️ 전체 메일로 보내기</a>
+  </div>
+  {% endif %}
+
+  {% for p in papers %}
+  <div class="card {% if p.score >= 85 %}top{% endif %}"
+       data-title="{{ p.title }}"
+       data-link="{{ p.link }}"
+       data-summary="{{ p.summary_ko }}">
+    <p class="meta">
+      {% if p.score >= 85 %}<span class="badge">⭐ 강력추천</span>{% endif %}
+      관련도 {{ p.score }}점 · {{ p.journal }} · {{ p.publication_date }} · 키워드: {{ p.matched_keyword }}
+    </p>
+    <h3><a href="{{ p.link }}" target="_blank" rel="noopener">{{ p.title }}</a></h3>
+    <p class="authors">저자: {{ p.authors }}</p>
+    <p class="summary">{{ p.summary_ko }}</p>
+    <div class="card-actions">
+      <button type="button" class="btn btn-secondary share-one-btn">📤 공유</button>
+      <a class="btn btn-secondary mailto-one-btn" href="#">✉️ 메일</a>
+    </div>
+  </div>
+  {% endfor %}
+{% endif %}
+
+<script>
+function paperText(card) {
+  const title = card.dataset.title;
+  const link = card.dataset.link;
+  const summary = card.dataset.summary;
+  return `${title}\n\n${summary}\n\n${link}`;
+}
+
+document.querySelectorAll('.card').forEach(function (card) {
+  const shareBtn = card.querySelector('.share-one-btn');
+  const mailBtn = card.querySelector('.mailto-one-btn');
+  const text = paperText(card);
+  const title = card.dataset.title;
+
+  if (shareBtn) {
+    shareBtn.addEventListener('click', function () {
+      if (navigator.share) {
+        navigator.share({ title: title, text: text, url: card.dataset.link }).catch(function () {});
+      } else {
+        navigator.clipboard.writeText(text).then(function () {
+          alert('공유 기능을 지원하지 않는 브라우저라, 대신 내용을 클립보드에 복사했어요.');
+        });
+      }
+    });
+  }
+  if (mailBtn) {
+    mailBtn.href = 'mailto:?subject=' + encodeURIComponent('[논문 공유] ' + title) + '&body=' + encodeURIComponent(text);
+  }
+});
+
+var shareAllBtn = document.getElementById('share-all-btn');
+var mailtoAllBtn = document.getElementById('mailto-all-btn');
+if (shareAllBtn) {
+  var allText = Array.from(document.querySelectorAll('.card')).map(paperText).join('\n\n---\n\n');
+  shareAllBtn.addEventListener('click', function () {
+    if (navigator.share) {
+      navigator.share({ title: '{{ lab_name }} 논문 브리핑', text: allText }).catch(function () {});
+    } else {
+      navigator.clipboard.writeText(allText).then(function () {
+        alert('공유 기능을 지원하지 않는 브라우저라, 대신 내용을 클립보드에 복사했어요.');
+      });
+    }
+  });
+  mailtoAllBtn.href = 'mailto:?subject=' + encodeURIComponent('{{ lab_name }} 논문 브리핑') + '&body=' + encodeURIComponent(allText);
+}
+</script>
+{% endblock %}
