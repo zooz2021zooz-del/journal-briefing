@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<p class="subtitle"><a href="{{ url_for('index') }}">&larr; 검색으로 돌아가기</a></p>
+
+<div class="card" style="text-align:center; padding: 40px 20px;">
+  <p style="font-size:15px; margin: 0 0 8px;">🔍 <strong>{{ lab_name }}</strong> 관련 논문을 찾고 Claude로 판단하는 중이에요.</p>
+  <p class="hint">키워드/RSS 양에 따라 1~2분 정도 걸릴 수 있어요. 이 화면은 자동으로 갱신돼요.</p>
+  <p class="hint" id="elapsed" style="margin-top:16px; font-weight:600;">경과 시간: 0초</p>
+</div>
+
+<script>
+var jobId = "{{ job_id }}";
+var seconds = 0;
+
+setInterval(function () {
+  seconds += 2;
+  var el = document.getElementById('elapsed');
+  if (el) el.innerText = '경과 시간: ' + seconds + '초';
+}, 2000);
+
+function poll() {
+  fetch('/search-status/' + jobId)
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.status === 'done' || data.status === 'error' || data.status === 'not_found') {
+        window.location.href = '/search-result/' + jobId;
+      } else {
+        setTimeout(poll, 2000);
+      }
+    })
+    .catch(function () {
+      setTimeout(poll, 3000);
+    });
+}
+setTimeout(poll, 1500);
+</script>
+{% endblock %}
