@@ -32,11 +32,14 @@ BROWSER_HEADERS = {
 # 한 번 검색에 너무 많은 API 호출(비용/시간)이 발생하지 않도록 상한을 둡니다.
 # (Render 등 배포 환경의 요청 타임아웃 안에 끝나야 하므로 총 판단 건수도 별도로 제한)
 # 판단을 병렬로 처리하므로(JUDGE_CONCURRENCY), 총 건수를 늘려도 소요 시간은 크게 늘지 않습니다.
+# OpenAlex와 RSS는 서로 다른 상한을 따로 가져서, 키워드가 많다고 RSS(Nature/Science)가
+# 밀려나 아예 검색되지 않는 일이 없게 합니다.
 MAX_KEYWORDS = 5
 MAX_PAPERS_PER_KEYWORD = 8
-MAX_TOTAL_PAPERS = 30
+MAX_OPENALEX_TOTAL = 25
+MAX_RSS_TOTAL = 25
 MAX_PER_RSS_FEED = 8
-JUDGE_CONCURRENCY = 6
+JUDGE_CONCURRENCY = 8
 
 # test_agent1.py와 동일한 Nature/Science 계열 세부 저널 RSS 피드
 RSS_FEEDS = {
@@ -307,9 +310,11 @@ def run_search(keywords, lab_profile, days_back=7, min_score=70, include_rss=Tru
     warnings = []
     candidates = []
     seen_links = set()
+    openalex_count = 0
+    rss_count = 0
 
     for keyword in keywords:
-        if len(candidates) >= MAX_TOTAL_PAPERS:
+        if openalex_count >= MAX_OPENALEX_TOTAL:
             break
 
         papers, err = search_openalex(keyword, days_back)
@@ -320,15 +325,16 @@ def run_search(keywords, lab_profile, days_back=7, min_score=70, include_rss=Tru
         for paper in papers:
             if paper["link"] and paper["link"] in seen_links:
                 continue
-            if len(candidates) >= MAX_TOTAL_PAPERS:
+            if openalex_count >= MAX_OPENALEX_TOTAL:
                 break
             candidates.append((paper, keyword))
+            openalex_count += 1
             if paper["link"]:
                 seen_links.add(paper["link"])
 
     if include_rss:
         for feed_name, feed_url in RSS_FEEDS.items():
-            if len(candidates) >= MAX_TOTAL_PAPERS:
+            if rss_count >= MAX_RSS_TOTAL:
                 break
 
             articles, err = fetch_rss(feed_name, feed_url)
@@ -339,9 +345,10 @@ def run_search(keywords, lab_profile, days_back=7, min_score=70, include_rss=Tru
             for article in articles:
                 if article["link"] and article["link"] in seen_links:
                     continue
-                if len(candidates) >= MAX_TOTAL_PAPERS:
+                if rss_count >= MAX_RSS_TOTAL:
                     break
                 candidates.append((article, feed_name))
+                rss_count += 1
                 if article["link"]:
                     seen_links.add(article["link"])
 
