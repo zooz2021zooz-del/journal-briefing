@@ -46,8 +46,29 @@ function selectedCards() {
     return cb && cb.checked;
   });
 }
+var GMAIL_BODY_LIMIT = 4500;
+
 function paperText(card) {
   return `${card.dataset.title}\n\n${card.dataset.summary}\n\n${card.dataset.link}`;
+}
+function paperLineCompact(card) {
+  return `• ${card.dataset.title}\n  ${card.dataset.link}`;
+}
+function buildBulkGmailBody(cards) {
+  var lines = cards.map(paperLineCompact);
+  var body = lines.join('\n\n');
+  if (body.length <= GMAIL_BODY_LIMIT) return body;
+
+  var mypageUrl = window.location.origin + '/mypage';
+  var included = [];
+  var total = 0;
+  var budget = GMAIL_BODY_LIMIT - 150;
+  for (var i = 0; i < lines.length; i++) {
+    if (total + lines[i].length + 2 > budget) break;
+    included.push(lines[i]);
+    total += lines[i].length + 2;
+  }
+  return included.join('\n\n') + '\n\n...외 ' + (lines.length - included.length) + '건은 이 페이지에서 계속 확인하세요: ' + mypageUrl;
 }
 function gmailComposeUrl(subject, body) {
   return 'https://mail.google.com/mail/?view=cm&fs=1&su=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
@@ -90,8 +111,7 @@ if (gmailBtn) {
       alert('공유할 항목을 먼저 선택해주세요.');
       return;
     }
-    var text = cards.map(paperText).join('\n\n---\n\n');
-    gmailBtn.href = gmailComposeUrl('논문 브리핑 공유 (' + cards.length + '건)', text);
+    gmailBtn.href = gmailComposeUrl('논문 브리핑 공유 (' + cards.length + '건)', buildBulkGmailBody(cards));
   });
 }
 

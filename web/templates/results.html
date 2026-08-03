@@ -40,11 +40,36 @@
 {% endif %}
 
 <script>
+// Gmail 웹 작성창은 URL이 너무 길면(대략 6000자 이상) 400 오류를 냅니다.
+// 여러 건을 한꺼번에 보낼 때는 제목+링크만 간단히 담고, 넘치는 건 마이페이지 링크로 안내합니다.
+var GMAIL_BODY_LIMIT = 4500;
+
 function paperText(card) {
   const title = card.dataset.title;
   const link = card.dataset.link;
   const summary = card.dataset.summary;
   return `${title}\n\n${summary}\n\n${link}`;
+}
+
+function paperLineCompact(card) {
+  return `• ${card.dataset.title}\n  ${card.dataset.link}`;
+}
+
+function buildBulkGmailBody(cards) {
+  var lines = cards.map(paperLineCompact);
+  var body = lines.join('\n\n');
+  if (body.length <= GMAIL_BODY_LIMIT) return body;
+
+  var mypageUrl = window.location.origin + '/mypage';
+  var included = [];
+  var total = 0;
+  var budget = GMAIL_BODY_LIMIT - 150;
+  for (var i = 0; i < lines.length; i++) {
+    if (total + lines[i].length + 2 > budget) break;
+    included.push(lines[i]);
+    total += lines[i].length + 2;
+  }
+  return included.join('\n\n') + '\n\n...외 ' + (lines.length - included.length) + '건은 마이페이지에서 확인하세요: ' + mypageUrl;
 }
 
 function gmailComposeUrl(subject, body) {
@@ -73,18 +98,19 @@ document.querySelectorAll('.card').forEach(function (card) {
     });
   }
   if (gmailBtn) {
-    gmailBtn.href = gmailComposeUrl('[논문 공유] ' + title, text);
+    gmailBtn.href = gmailComposeUrl('[논문 공유] ' + title, text.length > GMAIL_BODY_LIMIT ? text.slice(0, GMAIL_BODY_LIMIT) + '...' : text);
   }
 });
 
 var shareAllBtn = document.getElementById('share-all-btn');
 var gmailAllBtn = document.getElementById('gmail-all-btn');
 if (shareAllBtn) {
-  var allText = Array.from(document.querySelectorAll('.card')).map(paperText).join('\n\n---\n\n');
+  var allCards = Array.from(document.querySelectorAll('.card'));
+  var allText = allCards.map(paperText).join('\n\n---\n\n');
   shareAllBtn.addEventListener('click', function () {
     shareOrCopy('{{ lab_name }} 논문 브리핑', allText);
   });
-  gmailAllBtn.href = gmailComposeUrl('{{ lab_name }} 논문 브리핑', allText);
+  gmailAllBtn.href = gmailComposeUrl('{{ lab_name }} 논문 브리핑 (' + allCards.length + '건)', buildBulkGmailBody(allCards));
 }
 </script>
 {% endblock %}
