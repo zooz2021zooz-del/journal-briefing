@@ -11,6 +11,7 @@ from paper_search import (
     save_web_results,
     fetch_web_history,
     reset_web_history,
+    send_shared_email,
     is_top_journal,
     MAX_KEYWORDS,
     _supabase_client,
@@ -156,6 +157,17 @@ def mypage():
 def mypage_reset():
     reset_web_history()
     return redirect(url_for("mypage"))
+
+
+@app.route("/send-email", methods=["POST"])
+def send_email_route():
+    data = request.get_json(silent=True) or {}
+    recipient = (data.get("recipient") or "").strip()
+    subject = (data.get("subject") or "논문 공유").strip()
+    papers = data.get("papers") or []
+
+    ok, err = send_shared_email(recipient, subject, papers)
+    return jsonify({"success": ok, "error": err})
 
 
 if __name__ == "__main__":

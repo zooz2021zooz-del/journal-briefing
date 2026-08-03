@@ -15,7 +15,7 @@
   {% if papers %}
   <div class="card-actions" style="margin-bottom:20px;">
     <button type="button" class="btn" id="share-all-btn">📤 전체 결과 공유 (카카오톡 등)</button>
-    <a class="btn btn-secondary" id="gmail-all-btn" href="#" target="_blank" rel="noopener">📧 Gmail로 전체 보내기</a>
+    <button type="button" class="btn btn-secondary" id="email-all-btn">📧 전체 이메일로 보내기</button>
   </div>
   {% endif %}
 
@@ -23,7 +23,11 @@
   <div class="card {% if is_top_journal(p.journal) %}top{% endif %}"
        data-title="{{ p.title }}"
        data-link="{{ p.link }}"
-       data-summary="{{ p.summary_ko }}">
+       data-summary="{{ p.summary_ko }}"
+       data-authors="{{ p.authors }}"
+       data-journal="{{ p.journal }}"
+       data-date="{{ p.publication_date }}"
+       data-score="{{ p.score }}">
     <p class="meta">
       {% if is_top_journal(p.journal) %}<span class="badge">⭐ Nature/Science</span>{% endif %}
       관련도 {{ p.score }}점 · {{ p.journal }} · {{ p.publication_date }} · 키워드: {{ p.matched_keyword }}
@@ -33,17 +37,13 @@
     <p class="summary">{{ p.summary_ko }}</p>
     <div class="card-actions">
       <button type="button" class="btn btn-secondary share-one-btn">📤 공유</button>
-      <a class="btn btn-secondary gmail-one-btn" href="#" target="_blank" rel="noopener">📧 Gmail</a>
+      <button type="button" class="btn btn-secondary email-one-btn">📧 이메일</button>
     </div>
   </div>
   {% endfor %}
 {% endif %}
 
 <script>
-// Gmail 웹 작성창은 URL이 너무 길면(대략 6000자 이상) 400 오류를 냅니다.
-// 여러 건을 한꺼번에 보낼 때는 제목+링크만 간단히 담고, 넘치는 건 마이페이지 링크로 안내합니다.
-var GMAIL_BODY_LIMIT = 4500;
-
 function paperText(card) {
   const title = card.dataset.title;
   const link = card.dataset.link;
@@ -51,29 +51,16 @@ function paperText(card) {
   return `${title}\n\n${summary}\n\n${link}`;
 }
 
-function paperLineCompact(card) {
-  return `• ${card.dataset.title}\n  ${card.dataset.link}`;
-}
-
-function buildBulkGmailBody(cards) {
-  var lines = cards.map(paperLineCompact);
-  var body = lines.join('\n\n');
-  if (body.length <= GMAIL_BODY_LIMIT) return body;
-
-  var mypageUrl = window.location.origin + '/mypage';
-  var included = [];
-  var total = 0;
-  var budget = GMAIL_BODY_LIMIT - 150;
-  for (var i = 0; i < lines.length; i++) {
-    if (total + lines[i].length + 2 > budget) break;
-    included.push(lines[i]);
-    total += lines[i].length + 2;
-  }
-  return included.join('\n\n') + '\n\n...외 ' + (lines.length - included.length) + '건은 마이페이지에서 확인하세요: ' + mypageUrl;
-}
-
-function gmailComposeUrl(subject, body) {
-  return 'https://mail.google.com/mail/?view=cm&fs=1&su=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+function cardToPaperObj(card) {
+  return {
+    title: card.dataset.title,
+    link: card.dataset.link,
+    summary: card.dataset.summary,
+    authors: card.dataset.authors,
+    journal: card.dataset.journal,
+    publication_date: card.dataset.date,
+    score: card.dataset.score
+  };
 }
 
 function shareOrCopy(title, text) {
@@ -88,7 +75,7 @@ function shareOrCopy(title, text) {
 
 document.querySelectorAll('.card').forEach(function (card) {
   const shareBtn = card.querySelector('.share-one-btn');
-  const gmailBtn = card.querySelector('.gmail-one-btn');
+  const emailBtn = card.querySelector('.email-one-btn');
   const text = paperText(card);
   const title = card.dataset.title;
 
@@ -97,20 +84,24 @@ document.querySelectorAll('.card').forEach(function (card) {
       shareOrCopy(title, text);
     });
   }
-  if (gmailBtn) {
-    gmailBtn.href = gmailComposeUrl('[논문 공유] ' + title, text.length > GMAIL_BODY_LIMIT ? text.slice(0, GMAIL_BODY_LIMIT) + '...' : text);
+  if (emailBtn) {
+    emailBtn.addEventListener('click', function () {
+      openEmailModal([cardToPaperObj(card)], '[논문 공유] ' + title);
+    });
   }
 });
 
 var shareAllBtn = document.getElementById('share-all-btn');
-var gmailAllBtn = document.getElementById('gmail-all-btn');
+var emailAllBtn = document.getElementById('email-all-btn');
 if (shareAllBtn) {
   var allCards = Array.from(document.querySelectorAll('.card'));
   var allText = allCards.map(paperText).join('\n\n---\n\n');
   shareAllBtn.addEventListener('click', function () {
     shareOrCopy('{{ lab_name }} 논문 브리핑', allText);
   });
-  gmailAllBtn.href = gmailComposeUrl('{{ lab_name }} 논문 브리핑 (' + allCards.length + '건)', buildBulkGmailBody(allCards));
+  emailAllBtn.addEventListener('click', function () {
+    openEmailModal(allCards.map(cardToPaperObj), '{{ lab_name }} 논문 브리핑 (' + allCards.length + '건)');
+  });
 }
 </script>
 {% endblock %}

@@ -12,7 +12,7 @@
   <div class="card-actions" style="margin-bottom:16px; flex-wrap: wrap;">
     <button type="button" class="btn btn-secondary" id="select-all-btn">전체 선택</button>
     <button type="button" class="btn" id="share-selected-btn">📤 선택 항목 공유</button>
-    <a class="btn btn-secondary" id="gmail-selected-btn" href="#" target="_blank" rel="noopener">📧 선택 항목 Gmail로</a>
+    <button type="button" class="btn btn-secondary" id="email-selected-btn">📧 선택 항목 이메일로</button>
     <form method="post" action="{{ url_for('mypage_reset') }}" id="reset-form" style="margin:0;">
       <button type="submit" class="btn btn-danger">🗑️ 전체 기록 삭제</button>
     </form>
@@ -22,7 +22,11 @@
   <div class="card {% if is_top_journal(p.journal) %}top{% endif %}"
        data-title="{{ p.title }}"
        data-link="{{ p.link }}"
-       data-summary="{{ p.summary_ko or '' }}">
+       data-summary="{{ p.summary_ko or '' }}"
+       data-authors="{{ p.authors }}"
+       data-journal="{{ p.journal }}"
+       data-date="{{ p.publication_date }}"
+       data-score="{{ p.relevance_score }}">
     <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;">
       <input type="checkbox" class="select-paper" style="margin-top:6px;">
       <span style="flex:1;">
@@ -46,33 +50,23 @@ function selectedCards() {
     return cb && cb.checked;
   });
 }
-var GMAIL_BODY_LIMIT = 4500;
 
 function paperText(card) {
   return `${card.dataset.title}\n\n${card.dataset.summary}\n\n${card.dataset.link}`;
 }
-function paperLineCompact(card) {
-  return `• ${card.dataset.title}\n  ${card.dataset.link}`;
-}
-function buildBulkGmailBody(cards) {
-  var lines = cards.map(paperLineCompact);
-  var body = lines.join('\n\n');
-  if (body.length <= GMAIL_BODY_LIMIT) return body;
 
-  var mypageUrl = window.location.origin + '/mypage';
-  var included = [];
-  var total = 0;
-  var budget = GMAIL_BODY_LIMIT - 150;
-  for (var i = 0; i < lines.length; i++) {
-    if (total + lines[i].length + 2 > budget) break;
-    included.push(lines[i]);
-    total += lines[i].length + 2;
-  }
-  return included.join('\n\n') + '\n\n...외 ' + (lines.length - included.length) + '건은 이 페이지에서 계속 확인하세요: ' + mypageUrl;
+function cardToPaperObj(card) {
+  return {
+    title: card.dataset.title,
+    link: card.dataset.link,
+    summary: card.dataset.summary,
+    authors: card.dataset.authors,
+    journal: card.dataset.journal,
+    publication_date: card.dataset.date,
+    score: card.dataset.score
+  };
 }
-function gmailComposeUrl(subject, body) {
-  return 'https://mail.google.com/mail/?view=cm&fs=1&su=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
-}
+
 function shareOrCopy(title, text) {
   if (navigator.share) {
     navigator.share({ title: title, text: text }).catch(function () {});
@@ -102,16 +96,12 @@ if (shareBtn) {
   });
 }
 
-var gmailBtn = document.getElementById('gmail-selected-btn');
-if (gmailBtn) {
-  gmailBtn.addEventListener('click', function (e) {
+var emailBtn = document.getElementById('email-selected-btn');
+if (emailBtn) {
+  emailBtn.addEventListener('click', function () {
     var cards = selectedCards();
-    if (!cards.length) {
-      e.preventDefault();
-      alert('공유할 항목을 먼저 선택해주세요.');
-      return;
-    }
-    gmailBtn.href = gmailComposeUrl('논문 브리핑 공유 (' + cards.length + '건)', buildBulkGmailBody(cards));
+    if (!cards.length) { alert('공유할 항목을 먼저 선택해주세요.'); return; }
+    openEmailModal(cards.map(cardToPaperObj), '논문 브리핑 공유 (' + cards.length + '건)');
   });
 }
 

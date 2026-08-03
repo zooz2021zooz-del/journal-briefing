@@ -5,8 +5,11 @@
 """
 
 import os
+import smtplib
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 import feedparser
 import requests
@@ -16,6 +19,8 @@ from supabase import create_client
 OPENALEX_API_KEY = os.environ.get("OPENALEX_API_KEY")
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+GMAIL_ADDRESS = os.environ.get("GMAIL_ADDRESS")
+GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD")
 
 _supabase_client = None
 if SUPABASE_URL and SUPABASE_KEY:
@@ -254,6 +259,77 @@ def save_web_results(papers, lab_name):
         ).execute()
     except Exception as e:
         print(f"[경고] web_papers 저장 실패: {e}")
+
+
+def build_email_html(papers, heading):
+    """선택된 논문들을 제목이 클릭 가능한 링크인 HTML 이메일 본문으로 변환합니다."""
+    parts = [f"""
+    <html><body style="font-family: 'Malgun Gothic', sans-serif; line-height: 1.6;">
+    <h2>📚 {heading}</h2>
+    <p>{len(papers)}건의 논문을 공유합니다.</p>
+    <hr>
+    """]
+
+    for p in papers:
+        top = is_top_journal(p.get("journal"))
+        border_color = "#D4A017" if top else "#4A90D9"
+        background = "#FFF9EC" if top else "#FFFFFF"
+        badge = (
+            '<span style="background:#D4A017; color:white; font-size:11px; '
+            'padding:2px 8px; border-radius:10px; margin-right:6px;">⭐ Nature/Science</span>'
+            if top else ""
+        )
+        summary_html = (p.get("summary") or "").replace("\n", "<br>")
+
+        parts.append(f"""
+        <div style="margin-bottom: 24px; padding: 12px; border-left: 4px solid {border_color}; background: {background};">
+            <p style="font-size: 12px; color: #888; margin: 0;">
+                {badge}관련도 {p.get('score', '?')}점 · {p.get('journal', '')} · {p.get('publication_date', '')}
+            </p>
+            <h3 style="margin: 4px 0;">
+                <a href="{p.get('link', '#')}" style="color: #1a1a1a; text-decoration: none;">
+                    {p.get('title', '제목 없음')}
+                </a>
+            </h3>
+            <p style="font-size: 13px; color: #555; margin: 4px 0;">
+                저자: {p.get('authors', '정보 없음')}
+            </p>
+            <p style="font-size: 14px; color: #333; background: #f7f9fb; padding: 8px; border-radius: 4px;">
+                {summary_html}
+            </p>
+        </div>
+        """)
+
+    parts.append("""
+        <hr>
+        <p style="font-size: 12px; color: #999;">이 메일은 랩실 논문 브리핑 웹앱에서 발송되었습니다.</p>
+    </body></html>
+    """)
+    return "".join(parts)
+
+
+def send_shared_email(recipient, subject, papers):
+    """선택된 논문 목록을 HTML 이메일로 즉시 발송합니다. (성공여부, 오류메시지) 튜플을 반환합니다."""
+    if not GMAIL_ADDRESS or not GMAIL_APP_PASSWORD:
+        return False, "GMAIL_ADDRESS / GMAIL_APP_PASSWORD 환경변수가 설정되어 있지 않아요."
+    if not recipient or "@" not in recipient:
+        return False, "받는 사람 이메일 주소가 올바르지 않아요."
+    if not papers:
+        return False, "보낼 논문이 없어요."
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = GMAIL_ADDRESS
+    msg["To"] = recipient
+    msg.attach(MIMEText(build_email_html(papers, subject), "html"))
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
+            server.send_message(msg)
+        return True, None
+    except Exception as e:
+        return False, str(e)
 
 
 def is_top_journal(journal):

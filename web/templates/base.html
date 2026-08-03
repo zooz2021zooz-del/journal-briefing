@@ -157,6 +157,28 @@
       --shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 14px rgba(0, 0, 0, 0.25);
     }
   }
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 20, 43, 0.45);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: var(--card);
+    border-radius: 14px;
+    padding: 24px;
+    max-width: 400px;
+    width: 100%;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+  }
+  .modal-box h3 { margin: 0 0 4px; font-size: 17px; }
+  .modal-box .card-actions { margin-top: 16px; }
+  .modal-status { font-size: 13px; margin-top: 10px; min-height: 18px; }
 </style>
 </head>
 <body>
@@ -173,5 +195,81 @@
   </div>
   {% block content %}{% endblock %}
 </div>
+
+<div class="modal-overlay" id="email-modal">
+  <div class="modal-box">
+    <h3>📧 이메일로 보내기</h3>
+    <p class="hint" id="email-modal-count">0건을 보냅니다.</p>
+    <label for="email-recipient">받는 사람 이메일</label>
+    <input type="text" id="email-recipient" placeholder="example@gmail.com" autocomplete="email">
+    <div class="card-actions">
+      <button type="button" class="btn" id="email-send-btn">보내기</button>
+      <button type="button" class="btn btn-secondary" id="email-cancel-btn">취소</button>
+    </div>
+    <p class="modal-status" id="email-status"></p>
+  </div>
+</div>
+
+<script>
+var _emailPapers = [];
+var _emailSubject = '논문 공유';
+
+function openEmailModal(papers, subject) {
+  _emailPapers = papers;
+  _emailSubject = subject || '논문 공유';
+  document.getElementById('email-modal-count').innerText = papers.length + '건을 보냅니다.';
+  document.getElementById('email-status').innerText = '';
+  document.getElementById('email-recipient').value = localStorage.getItem('lastEmailRecipient') || '';
+  document.getElementById('email-modal').classList.add('open');
+}
+
+function closeEmailModal() {
+  document.getElementById('email-modal').classList.remove('open');
+}
+
+document.getElementById('email-cancel-btn').addEventListener('click', closeEmailModal);
+document.getElementById('email-modal').addEventListener('click', function (e) {
+  if (e.target === this) closeEmailModal();
+});
+
+document.getElementById('email-send-btn').addEventListener('click', function () {
+  var recipient = document.getElementById('email-recipient').value.trim();
+  var statusEl = document.getElementById('email-status');
+  if (!recipient || recipient.indexOf('@') === -1) {
+    statusEl.innerText = '받는 사람 이메일을 정확히 입력해주세요.';
+    return;
+  }
+  var btn = document.getElementById('email-send-btn');
+  btn.disabled = true;
+  btn.innerText = '보내는 중...';
+  statusEl.innerText = '';
+
+  fetch('/send-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ recipient: recipient, subject: _emailSubject, papers: _emailPapers })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      btn.disabled = false;
+      btn.innerText = '보내기';
+      if (data.success) {
+        localStorage.setItem('lastEmailRecipient', recipient);
+        statusEl.style.color = '#2a9d5c';
+        statusEl.innerText = '✅ 발송 완료!';
+        setTimeout(closeEmailModal, 1200);
+      } else {
+        statusEl.style.color = '#c0392b';
+        statusEl.innerText = '❌ 실패: ' + (data.error || '알 수 없는 오류');
+      }
+    })
+    .catch(function () {
+      btn.disabled = false;
+      btn.innerText = '보내기';
+      statusEl.style.color = '#c0392b';
+      statusEl.innerText = '❌ 네트워크 오류가 발생했어요.';
+    });
+});
+</script>
 </body>
 </html>
