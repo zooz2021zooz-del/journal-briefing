@@ -8,6 +8,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
+import feedparser
 import requests
 from anthropic import Anthropic
 from supabase import create_client
@@ -30,10 +31,31 @@ BROWSER_HEADERS = {
 
 # 한 번 검색에 너무 많은 API 호출(비용/시간)이 발생하지 않도록 상한을 둡니다.
 # (Render 등 배포 환경의 요청 타임아웃 안에 끝나야 하므로 총 판단 건수도 별도로 제한)
+# 판단을 병렬로 처리하므로(JUDGE_CONCURRENCY), 총 건수를 늘려도 소요 시간은 크게 늘지 않습니다.
 MAX_KEYWORDS = 5
-MAX_PAPERS_PER_KEYWORD = 5
-MAX_TOTAL_PAPERS = 15
+MAX_PAPERS_PER_KEYWORD = 8
+MAX_TOTAL_PAPERS = 30
+MAX_PER_RSS_FEED = 8
 JUDGE_CONCURRENCY = 6
+
+# test_agent1.py와 동일한 Nature/Science 계열 세부 저널 RSS 피드
+RSS_FEEDS = {
+    "Nature Nanotechnology": "https://www.nature.com/nnano.rss",
+    "Nature Energy": "https://www.nature.com/nenergy.rss",
+    "Nature Electronics": "https://www.nature.com/natelectron.rss",
+    "Nature Materials": "https://www.nature.com/nmat.rss",
+    "Nature Biomedical Engineering": "https://www.nature.com/natbiomedeng.rss",
+    "Science Advances": "https://www.science.org/action/showFeed?type=etoc&feed=rss&jc=sciadv",
+}
+
+NON_ARTICLE_TITLE_KEYWORDS = [
+    "in science journals",
+    "this week in science",
+    "editors' choice",
+    "news at a glance",
+    "in other journals",
+    "table of contents",
+]
 
 
 def _reconstruct_abstract(inverted_index):
@@ -96,6 +118,48 @@ def search_openalex(keyword, days_back=7, per_page=MAX_PAPERS_PER_KEYWORD):
         })
 
     return papers, None
+
+
+def fetch_rss(feed_name, feed_url, limit=MAX_PER_RSS_FEED):
+    """RSS 피드 하나에서 최근 게시물을 구조화된 딕셔너리 목록으로 가져옵니다."""
+    try:
+        response = requests.get(feed_url, headers=BROWSER_HEADERS, timeout=10)
+        response.raise_for_status()
+        parsed = feedparser.parse(response.content)
+    except requests.exceptions.RequestException as e:
+        return [], f"{feed_name} RSS 접속 실패: {e}"
+
+    if parsed.bozo and not parsed.entries:
+        return [], f"{feed_name} RSS를 읽는 데 문제가 있었어요: {parsed.get('bozo_exception')}"
+
+    articles = []
+    for entry in parsed.entries:
+        if len(articles) >= limit:
+            break
+
+        title = entry.get("title", "제목 없음")
+        summary = entry.get("summary", entry.get("description", ""))
+        link = entry.get("link", "")
+
+        if not summary or len(summary.strip()) < 20:
+            continue
+        if any(kw in title.lower() for kw in NON_ARTICLE_TITLE_KEYWORDS):
+            continue
+
+        authors = entry.get("author", "") or "(저자 정보 없음)"
+        publication_date = entry.get("published", entry.get("updated", "(날짜 정보 없음)"))
+
+        articles.append({
+            "title": title,
+            "authors": authors,
+            "abstract": summary,
+            "journal": feed_name,
+            "publication_date": publication_date,
+            "link": link,
+            "source": f"{feed_name} RSS",
+        })
+
+    return articles, None
 
 
 def judge_relevance(client, paper, lab_profile):
@@ -228,10 +292,11 @@ def fetch_web_history(limit=200):
         return []
 
 
-def run_search(keywords, lab_profile, days_back=7, min_score=70):
+def run_search(keywords, lab_profile, days_back=7, min_score=70, include_rss=True):
     """
-    키워드 목록 + 연구실 프로필을 받아 실시간으로 OpenAlex 검색 + Claude 판단을 수행하고
-    관련도 min_score 이상인 논문 목록(점수 높은 순)과 경고 메시지 목록을 반환합니다.
+    키워드 목록 + 연구실 프로필을 받아 실시간으로 OpenAlex(+선택 시 Nature/Science RSS)
+    검색과 Claude 판단을 수행하고, 관련도 min_score 이상인 논문 목록(점수 높은 순)과
+    경고 메시지 목록을 반환합니다.
     Claude 판단은 여러 건을 동시에 호출해서(JUDGE_CONCURRENCY) 전체 요청이
     배포 환경의 요청 타임아웃 안에 끝나도록 합니다.
     """
@@ -260,6 +325,25 @@ def run_search(keywords, lab_profile, days_back=7, min_score=70):
             candidates.append((paper, keyword))
             if paper["link"]:
                 seen_links.add(paper["link"])
+
+    if include_rss:
+        for feed_name, feed_url in RSS_FEEDS.items():
+            if len(candidates) >= MAX_TOTAL_PAPERS:
+                break
+
+            articles, err = fetch_rss(feed_name, feed_url)
+            if err:
+                warnings.append(err)
+                continue
+
+            for article in articles:
+                if article["link"] and article["link"] in seen_links:
+                    continue
+                if len(candidates) >= MAX_TOTAL_PAPERS:
+                    break
+                candidates.append((article, feed_name))
+                if article["link"]:
+                    seen_links.add(article["link"])
 
     relevant_papers = []
 

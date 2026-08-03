@@ -59,6 +59,7 @@ def search():
     keywords = [k.strip() for k in keywords_raw.splitlines() if k.strip()]
     days_back = int(request.form.get("days_back", 7))
     min_score = int(request.form.get("min_score", 70))
+    include_rss = request.form.get("include_rss") == "on"
 
     error = None
     papers, warnings = [], []
@@ -68,7 +69,7 @@ def search():
     elif not lab_profile:
         error = "연구실 소개를 입력해주세요."
     else:
-        papers, warnings = run_search(keywords, lab_profile, days_back, min_score)
+        papers, warnings = run_search(keywords, lab_profile, days_back, min_score, include_rss)
         save_web_results(papers, lab_name)
 
     return render_template(
