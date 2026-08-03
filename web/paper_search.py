@@ -5,6 +5,7 @@
 """
 
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
 import requests
@@ -27,9 +28,12 @@ BROWSER_HEADERS = {
     )
 }
 
-# 한 번 검색에 너무 많은 API 호출(비용)이 발생하지 않도록 상한을 둡니다.
+# 한 번 검색에 너무 많은 API 호출(비용/시간)이 발생하지 않도록 상한을 둡니다.
+# (Render 등 배포 환경의 요청 타임아웃 안에 끝나야 하므로 총 판단 건수도 별도로 제한)
 MAX_KEYWORDS = 5
 MAX_PAPERS_PER_KEYWORD = 5
+MAX_TOTAL_PAPERS = 15
+JUDGE_CONCURRENCY = 6
 
 
 def _reconstruct_abstract(inverted_index):
@@ -207,16 +211,21 @@ def run_search(keywords, lab_profile, days_back=7, min_score=70):
     """
     키워드 목록 + 연구실 프로필을 받아 실시간으로 OpenAlex 검색 + Claude 판단을 수행하고
     관련도 min_score 이상인 논문 목록(점수 높은 순)과 경고 메시지 목록을 반환합니다.
+    Claude 판단은 여러 건을 동시에 호출해서(JUDGE_CONCURRENCY) 전체 요청이
+    배포 환경의 요청 타임아웃 안에 끝나도록 합니다.
     """
     client = Anthropic()  # ANTHROPIC_API_KEY 환경변수 사용
 
     keywords = [k.strip() for k in keywords if k.strip()][:MAX_KEYWORDS]
 
     warnings = []
-    relevant_papers = []
+    candidates = []
     seen_links = set()
 
     for keyword in keywords:
+        if len(candidates) >= MAX_TOTAL_PAPERS:
+            break
+
         papers, err = search_openalex(keyword, days_back)
         if err:
             warnings.append(f"[{keyword}] {err}")
@@ -225,11 +234,24 @@ def run_search(keywords, lab_profile, days_back=7, min_score=70):
         for paper in papers:
             if paper["link"] and paper["link"] in seen_links:
                 continue
+            if len(candidates) >= MAX_TOTAL_PAPERS:
+                break
+            candidates.append((paper, keyword))
+            if paper["link"]:
+                seen_links.add(paper["link"])
 
+    relevant_papers = []
+
+    def _judge(paper, keyword):
+        return paper, keyword, judge_relevance(client, paper, lab_profile)
+
+    with ThreadPoolExecutor(max_workers=JUDGE_CONCURRENCY) as executor:
+        futures = [executor.submit(_judge, paper, keyword) for paper, keyword in candidates]
+        for future in as_completed(futures):
             try:
-                result_text = judge_relevance(client, paper, lab_profile)
+                paper, keyword, result_text = future.result()
             except Exception as e:
-                warnings.append(f"[{paper['title'][:40]}...] 판단 실패: {e}")
+                warnings.append(f"판단 실패: {e}")
                 continue
 
             score = parse_score(result_text)
@@ -240,8 +262,6 @@ def run_search(keywords, lab_profile, days_back=7, min_score=70):
                 paper_with_judgement["summary_ko"] = parse_summary(result_text)
                 paper_with_judgement["matched_keyword"] = keyword
                 relevant_papers.append(paper_with_judgement)
-                if paper["link"]:
-                    seen_links.add(paper["link"])
 
     relevant_papers.sort(key=lambda p: p["score"], reverse=True)
     return relevant_papers, warnings
