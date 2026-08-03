@@ -35,11 +35,11 @@ BROWSER_HEADERS = {
 # OpenAlex와 RSS는 서로 다른 상한을 따로 가져서, 키워드가 많다고 RSS(Nature/Science)가
 # 밀려나 아예 검색되지 않는 일이 없게 합니다.
 MAX_KEYWORDS = 5
-MAX_PAPERS_PER_KEYWORD = 8
-MAX_OPENALEX_TOTAL = 25
-MAX_RSS_TOTAL = 25
-MAX_PER_RSS_FEED = 8
-JUDGE_CONCURRENCY = 8
+MAX_PAPERS_PER_KEYWORD = 15
+MAX_OPENALEX_TOTAL = 50
+MAX_RSS_TOTAL = 60
+MAX_PER_RSS_FEED = 20
+JUDGE_CONCURRENCY = 10
 
 # test_agent1.py와 동일한 Nature/Science 계열 세부 저널 RSS 피드
 RSS_FEEDS = {
