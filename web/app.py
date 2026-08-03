@@ -3,10 +3,19 @@ import secrets
 
 from flask import Flask, render_template, request, redirect, url_for, session
 
-from paper_search import run_search, save_web_results, fetch_web_history, MAX_KEYWORDS, _supabase_client
+from paper_search import (
+    run_search,
+    save_web_results,
+    fetch_web_history,
+    reset_web_history,
+    is_top_journal,
+    MAX_KEYWORDS,
+    _supabase_client,
+)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
+app.jinja_env.globals["is_top_journal"] = is_top_journal
 
 SITE_PASSWORD = os.environ.get("SITE_PASSWORD")
 
@@ -77,6 +86,12 @@ def search():
 def mypage():
     history = fetch_web_history()
     return render_template("mypage.html", history=history, history_enabled=bool(_supabase_client))
+
+
+@app.route("/mypage/reset", methods=["POST"])
+def mypage_reset():
+    reset_web_history()
+    return redirect(url_for("mypage"))
 
 
 if __name__ == "__main__":

@@ -14,18 +14,18 @@
 
   {% if papers %}
   <div class="card-actions" style="margin-bottom:20px;">
-    <button type="button" class="btn" id="share-all-btn">📤 전체 결과 공유하기</button>
-    <a class="btn btn-secondary" id="mailto-all-btn" href="#">✉️ 전체 메일로 보내기</a>
+    <button type="button" class="btn" id="share-all-btn">📤 전체 결과 공유 (카카오톡 등)</button>
+    <a class="btn btn-secondary" id="gmail-all-btn" href="#" target="_blank" rel="noopener">📧 Gmail로 전체 보내기</a>
   </div>
   {% endif %}
 
   {% for p in papers %}
-  <div class="card {% if p.score >= 85 %}top{% endif %}"
+  <div class="card {% if is_top_journal(p.journal) %}top{% endif %}"
        data-title="{{ p.title }}"
        data-link="{{ p.link }}"
        data-summary="{{ p.summary_ko }}">
     <p class="meta">
-      {% if p.score >= 85 %}<span class="badge">⭐ 강력추천</span>{% endif %}
+      {% if is_top_journal(p.journal) %}<span class="badge">⭐ Nature/Science</span>{% endif %}
       관련도 {{ p.score }}점 · {{ p.journal }} · {{ p.publication_date }} · 키워드: {{ p.matched_keyword }}
     </p>
     <h3><a href="{{ p.link }}" target="_blank" rel="noopener">{{ p.title }}</a></h3>
@@ -33,7 +33,7 @@
     <p class="summary">{{ p.summary_ko }}</p>
     <div class="card-actions">
       <button type="button" class="btn btn-secondary share-one-btn">📤 공유</button>
-      <a class="btn btn-secondary mailto-one-btn" href="#">✉️ 메일</a>
+      <a class="btn btn-secondary gmail-one-btn" href="#" target="_blank" rel="noopener">📧 Gmail</a>
     </div>
   </div>
   {% endfor %}
@@ -47,42 +47,44 @@ function paperText(card) {
   return `${title}\n\n${summary}\n\n${link}`;
 }
 
+function gmailComposeUrl(subject, body) {
+  return 'https://mail.google.com/mail/?view=cm&fs=1&su=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+}
+
+function shareOrCopy(title, text) {
+  if (navigator.share) {
+    navigator.share({ title: title, text: text }).catch(function () {});
+  } else {
+    navigator.clipboard.writeText(text).then(function () {
+      alert('이 브라우저는 공유창을 지원하지 않아, 대신 내용을 클립보드에 복사했어요.\n카카오톡 등에서 붙여넣기(Ctrl+V) 해주세요.');
+    });
+  }
+}
+
 document.querySelectorAll('.card').forEach(function (card) {
   const shareBtn = card.querySelector('.share-one-btn');
-  const mailBtn = card.querySelector('.mailto-one-btn');
+  const gmailBtn = card.querySelector('.gmail-one-btn');
   const text = paperText(card);
   const title = card.dataset.title;
 
   if (shareBtn) {
     shareBtn.addEventListener('click', function () {
-      if (navigator.share) {
-        navigator.share({ title: title, text: text, url: card.dataset.link }).catch(function () {});
-      } else {
-        navigator.clipboard.writeText(text).then(function () {
-          alert('공유 기능을 지원하지 않는 브라우저라, 대신 내용을 클립보드에 복사했어요.');
-        });
-      }
+      shareOrCopy(title, text);
     });
   }
-  if (mailBtn) {
-    mailBtn.href = 'mailto:?subject=' + encodeURIComponent('[논문 공유] ' + title) + '&body=' + encodeURIComponent(text);
+  if (gmailBtn) {
+    gmailBtn.href = gmailComposeUrl('[논문 공유] ' + title, text);
   }
 });
 
 var shareAllBtn = document.getElementById('share-all-btn');
-var mailtoAllBtn = document.getElementById('mailto-all-btn');
+var gmailAllBtn = document.getElementById('gmail-all-btn');
 if (shareAllBtn) {
   var allText = Array.from(document.querySelectorAll('.card')).map(paperText).join('\n\n---\n\n');
   shareAllBtn.addEventListener('click', function () {
-    if (navigator.share) {
-      navigator.share({ title: '{{ lab_name }} 논문 브리핑', text: allText }).catch(function () {});
-    } else {
-      navigator.clipboard.writeText(allText).then(function () {
-        alert('공유 기능을 지원하지 않는 브라우저라, 대신 내용을 클립보드에 복사했어요.');
-      });
-    }
+    shareOrCopy('{{ lab_name }} 논문 브리핑', allText);
   });
-  mailtoAllBtn.href = 'mailto:?subject=' + encodeURIComponent('{{ lab_name }} 논문 브리핑') + '&body=' + encodeURIComponent(allText);
+  gmailAllBtn.href = gmailComposeUrl('{{ lab_name }} 논문 브리핑', allText);
 }
 </script>
 {% endblock %}

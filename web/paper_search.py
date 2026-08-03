@@ -189,6 +189,27 @@ def save_web_results(papers, lab_name):
         print(f"[경고] web_papers 저장 실패: {e}")
 
 
+def is_top_journal(journal):
+    """저널명이 Nature/Science 계열(세부 저널 포함)인지 판단합니다.
+    'Materials Science in ...'처럼 이름 중간에 science가 들어간 일반 저널과
+    구분하기 위해, 이름이 Nature/Science로 시작하는 경우만 인정합니다.
+    """
+    j = (journal or "").strip().lower()
+    return j.startswith("nature") or j.startswith("science")
+
+
+def reset_web_history():
+    """web_papers 테이블의 누적 기록을 전부 삭제합니다."""
+    if not _supabase_client:
+        return False
+    try:
+        _supabase_client.table("web_papers").delete().neq("id", 0).execute()
+        return True
+    except Exception as e:
+        print(f"[경고] web_papers 초기화 실패: {e}")
+        return False
+
+
 def fetch_web_history(limit=200):
     """마이페이지에 보여줄 누적 검색 기록을 최신순으로 가져옵니다."""
     if not _supabase_client:

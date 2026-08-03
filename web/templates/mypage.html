@@ -9,14 +9,17 @@
 {% else %}
   <p>지금까지 누적된 논문 <strong>{{ history|length }}건</strong>이에요. 원하는 항목을 선택해서 공유할 수 있어요.</p>
 
-  <div class="card-actions" style="margin-bottom:16px;">
+  <div class="card-actions" style="margin-bottom:16px; flex-wrap: wrap;">
     <button type="button" class="btn btn-secondary" id="select-all-btn">전체 선택</button>
     <button type="button" class="btn" id="share-selected-btn">📤 선택 항목 공유</button>
-    <a class="btn btn-secondary" id="mailto-selected-btn" href="#">✉️ 선택 항목 메일로</a>
+    <a class="btn btn-secondary" id="gmail-selected-btn" href="#" target="_blank" rel="noopener">📧 선택 항목 Gmail로</a>
+    <form method="post" action="{{ url_for('mypage_reset') }}" id="reset-form" style="margin:0;">
+      <button type="submit" class="btn btn-danger">🗑️ 전체 기록 삭제</button>
+    </form>
   </div>
 
   {% for p in history %}
-  <div class="card {% if p.relevance_score and p.relevance_score >= 85 %}top{% endif %}"
+  <div class="card {% if is_top_journal(p.journal) %}top{% endif %}"
        data-title="{{ p.title }}"
        data-link="{{ p.link }}"
        data-summary="{{ p.summary_ko or '' }}">
@@ -24,7 +27,7 @@
       <input type="checkbox" class="select-paper" style="margin-top:6px;">
       <span style="flex:1;">
         <p class="meta">
-          {% if p.relevance_score and p.relevance_score >= 85 %}<span class="badge">⭐ 강력추천</span>{% endif %}
+          {% if is_top_journal(p.journal) %}<span class="badge">⭐ Nature/Science</span>{% endif %}
           관련도 {{ p.relevance_score }}점 · {{ p.journal }} · {{ p.publication_date }} · {{ p.lab_name }}
         </p>
         <h3><a href="{{ p.link }}" target="_blank" rel="noopener" onclick="event.stopPropagation()">{{ p.title }}</a></h3>
@@ -46,6 +49,18 @@ function selectedCards() {
 function paperText(card) {
   return `${card.dataset.title}\n\n${card.dataset.summary}\n\n${card.dataset.link}`;
 }
+function gmailComposeUrl(subject, body) {
+  return 'https://mail.google.com/mail/?view=cm&fs=1&su=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+}
+function shareOrCopy(title, text) {
+  if (navigator.share) {
+    navigator.share({ title: title, text: text }).catch(function () {});
+  } else {
+    navigator.clipboard.writeText(text).then(function () {
+      alert('이 브라우저는 공유창을 지원하지 않아, 대신 내용을 클립보드에 복사했어요.\n카카오톡 등에서 붙여넣기(Ctrl+V) 해주세요.');
+    });
+  }
+}
 
 var selectAllBtn = document.getElementById('select-all-btn');
 if (selectAllBtn) {
@@ -62,19 +77,13 @@ if (shareBtn) {
     var cards = selectedCards();
     if (!cards.length) { alert('공유할 항목을 먼저 선택해주세요.'); return; }
     var text = cards.map(paperText).join('\n\n---\n\n');
-    if (navigator.share) {
-      navigator.share({ title: '논문 브리핑 공유', text: text }).catch(function () {});
-    } else {
-      navigator.clipboard.writeText(text).then(function () {
-        alert('공유 기능을 지원하지 않는 브라우저라, 대신 내용을 클립보드에 복사했어요.');
-      });
-    }
+    shareOrCopy('논문 브리핑 공유', text);
   });
 }
 
-var mailBtn = document.getElementById('mailto-selected-btn');
-if (mailBtn) {
-  mailBtn.addEventListener('click', function (e) {
+var gmailBtn = document.getElementById('gmail-selected-btn');
+if (gmailBtn) {
+  gmailBtn.addEventListener('click', function (e) {
     var cards = selectedCards();
     if (!cards.length) {
       e.preventDefault();
@@ -82,7 +91,16 @@ if (mailBtn) {
       return;
     }
     var text = cards.map(paperText).join('\n\n---\n\n');
-    mailBtn.href = 'mailto:?subject=' + encodeURIComponent('논문 브리핑 공유 (' + cards.length + '건)') + '&body=' + encodeURIComponent(text);
+    gmailBtn.href = gmailComposeUrl('논문 브리핑 공유 (' + cards.length + '건)', text);
+  });
+}
+
+var resetForm = document.getElementById('reset-form');
+if (resetForm) {
+  resetForm.addEventListener('submit', function (e) {
+    if (!confirm('마이페이지에 쌓인 모든 기록을 삭제할까요? 되돌릴 수 없어요.')) {
+      e.preventDefault();
+    }
   });
 }
 </script>
