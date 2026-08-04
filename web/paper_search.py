@@ -323,13 +323,25 @@ def send_shared_email(recipient, subject, papers):
     msg["To"] = recipient
     msg.attach(MIMEText(build_email_html(papers, subject), "html"))
 
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
-            server.send_message(msg)
-        return True, None
-    except Exception as e:
-        return False, str(e)
+    # 일부 배포 환경(Render 등)은 465(SMTPS)를 막아둔 경우가 있어,
+    # 465(SSL)가 막혀 있으면 587(STARTTLS)로 한 번 더 시도합니다.
+    last_error = None
+    for port, use_ssl in ((465, True), (587, False)):
+        try:
+            if use_ssl:
+                server = smtplib.SMTP_SSL("smtp.gmail.com", port, timeout=20)
+            else:
+                server = smtplib.SMTP("smtp.gmail.com", port, timeout=20)
+                server.starttls()
+            with server:
+                server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
+                server.send_message(msg)
+            return True, None
+        except Exception as e:
+            last_error = e
+            continue
+
+    return False, str(last_error)
 
 
 def is_top_journal(journal):
