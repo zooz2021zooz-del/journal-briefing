@@ -3,6 +3,7 @@ import secrets
 import threading
 import time
 import uuid
+from datetime import timedelta
 
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 
@@ -20,6 +21,9 @@ from paper_search import (
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
 app.jinja_env.globals["is_top_journal"] = is_top_journal
+# 로그인이 브라우저 쿠키 보존 정책과 상관없이 무기한 유지되지 않도록,
+# 마지막 활동 기준 6시간이 지나면 다시 비밀번호를 입력하게 합니다.
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=6)
 
 SITE_PASSWORD = os.environ.get("SITE_PASSWORD")
 
@@ -56,6 +60,7 @@ def require_login():
         return
     if not session.get("authed"):
         return redirect(url_for("login"))
+    session.permanent = True  # 활동이 있을 때마다 만료 시각을 뒤로 미룹니다 (sliding expiration)
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -147,10 +152,30 @@ def search_result(job_id):
     )
 
 
+MYPAGE_PER_PAGE = 20
+
+
 @app.route("/mypage")
 def mypage():
-    history = fetch_web_history()
-    return render_template("mypage.html", history=history, history_enabled=bool(_supabase_client))
+    page = request.args.get("page", 1, type=int) or 1
+    page = max(1, page)
+    min_score = request.args.get("min_score", 0, type=int) or 0
+    top_only = request.args.get("top_only") == "1"
+
+    history, total = fetch_web_history(page=page, per_page=MYPAGE_PER_PAGE, min_score=min_score, top_only=top_only)
+    total_pages = max(1, (total + MYPAGE_PER_PAGE - 1) // MYPAGE_PER_PAGE)
+    page = min(page, total_pages)
+
+    return render_template(
+        "mypage.html",
+        history=history,
+        history_enabled=bool(_supabase_client),
+        page=page,
+        total_pages=total_pages,
+        total=total,
+        min_score=min_score,
+        top_only=top_only,
+    )
 
 
 @app.route("/mypage/reset", methods=["POST"])

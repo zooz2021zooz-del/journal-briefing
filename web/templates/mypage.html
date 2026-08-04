@@ -4,15 +4,27 @@
 
 {% if not history_enabled %}
   <p class="warning">⚠️ SUPABASE_URL / SUPABASE_KEY가 설정되어 있지 않아 마이페이지 기록을 쓸 수 없어요.</p>
-{% elif not history %}
-  <p>아직 저장된 검색 기록이 없어요. 검색을 먼저 해보세요.</p>
 {% else %}
-  <p>지금까지 누적된 논문 <strong>{{ history|length }}건</strong>이에요. 원하는 항목을 선택해서 공유할 수 있어요.</p>
+  <form method="get" action="{{ url_for('mypage') }}" class="card-actions" style="margin-bottom:8px; flex-wrap: wrap;">
+    <select name="min_score" onchange="this.form.submit()" style="width:auto; margin-top:0;">
+      <option value="0" {% if min_score == 0 %}selected{% endif %}>전체 점수</option>
+      <option value="60" {% if min_score == 60 %}selected{% endif %}>관련도 60점 이상</option>
+      <option value="70" {% if min_score == 70 %}selected{% endif %}>관련도 70점 이상</option>
+      <option value="80" {% if min_score == 80 %}selected{% endif %}>관련도 80점 이상</option>
+      <option value="90" {% if min_score == 90 %}selected{% endif %}>관련도 90점 이상</option>
+    </select>
+    <label style="display:flex; align-items:center; gap:6px; font-weight:500; margin:0;">
+      <input type="checkbox" name="top_only" value="1" {% if top_only %}checked{% endif %} onchange="this.form.submit()" style="width:auto;">
+      ⭐ 주요논문만 (Nature/Science)
+    </label>
+  </form>
 
+  <p>전체 <strong>{{ total }}건</strong> 중 {{ history|length }}건 표시 중이에요.</p>
+
+  {% if history %}
   <div class="card-actions" style="margin-bottom:16px; flex-wrap: wrap;">
     <button type="button" class="btn btn-secondary" id="select-all-btn">전체 선택</button>
-    <button type="button" class="btn" id="share-selected-btn">📤 선택 항목 공유</button>
-    <button type="button" class="btn btn-secondary" id="email-selected-btn">📧 선택 항목 이메일로</button>
+    <button type="button" class="btn" id="email-selected-btn">📧 선택 항목 이메일로</button>
     <form method="post" action="{{ url_for('mypage_reset') }}" id="reset-form" style="margin:0;">
       <button type="submit" class="btn btn-danger">🗑️ 전체 기록 삭제</button>
     </form>
@@ -41,6 +53,19 @@
     </label>
   </div>
   {% endfor %}
+
+  <div class="card-actions" style="justify-content:center; margin-top:8px;">
+    {% if page > 1 %}
+      <a class="btn btn-secondary" href="{{ url_for('mypage', page=page-1, min_score=min_score or None, top_only=1 if top_only else None) }}">&larr; 이전</a>
+    {% endif %}
+    <span class="hint" style="margin:0 10px;">{{ page }} / {{ total_pages }} 페이지</span>
+    {% if page < total_pages %}
+      <a class="btn btn-secondary" href="{{ url_for('mypage', page=page+1, min_score=min_score or None, top_only=1 if top_only else None) }}">다음 &rarr;</a>
+    {% endif %}
+  </div>
+  {% else %}
+  <p>조건에 맞는 논문이 없어요.</p>
+  {% endif %}
 {% endif %}
 
 <script>
@@ -49,10 +74,6 @@ function selectedCards() {
     var cb = card.querySelector('.select-paper');
     return cb && cb.checked;
   });
-}
-
-function paperText(card) {
-  return `${card.dataset.title}\n\n${card.dataset.summary}\n\n${card.dataset.link}`;
 }
 
 function cardToPaperObj(card) {
@@ -67,32 +88,12 @@ function cardToPaperObj(card) {
   };
 }
 
-function shareOrCopy(title, text) {
-  if (navigator.share) {
-    navigator.share({ title: title, text: text }).catch(function () {});
-  } else {
-    navigator.clipboard.writeText(text).then(function () {
-      alert('이 브라우저는 공유창을 지원하지 않아, 대신 내용을 클립보드에 복사했어요.\n카카오톡 등에서 붙여넣기(Ctrl+V) 해주세요.');
-    });
-  }
-}
-
 var selectAllBtn = document.getElementById('select-all-btn');
 if (selectAllBtn) {
   selectAllBtn.addEventListener('click', function () {
     var boxes = document.querySelectorAll('.select-paper');
     var allChecked = Array.from(boxes).every(function (b) { return b.checked; });
     boxes.forEach(function (b) { b.checked = !allChecked; });
-  });
-}
-
-var shareBtn = document.getElementById('share-selected-btn');
-if (shareBtn) {
-  shareBtn.addEventListener('click', function () {
-    var cards = selectedCards();
-    if (!cards.length) { alert('공유할 항목을 먼저 선택해주세요.'); return; }
-    var text = cards.map(paperText).join('\n\n---\n\n');
-    shareOrCopy('논문 브리핑 공유', text);
   });
 }
 

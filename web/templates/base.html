@@ -144,6 +144,59 @@
   }
   .top-bar a { color: var(--muted); font-size: 13px; text-decoration: none; font-weight: 500; }
   .top-bar a:hover { color: var(--accent); }
+  .hero { text-align: center; padding: 12px 8px 28px; }
+  .hero-icon {
+    font-size: 34px;
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-soft);
+    border-radius: 18px;
+  }
+  .hero-title { font-size: 20px; margin: 0 0 8px; letter-spacing: -0.01em; }
+  .hero-subtitle { color: var(--muted); font-size: 14px; max-width: 440px; margin: 0 auto; }
+  .form-card { border-left: 1px solid var(--border); }
+  .form-section {
+    display: flex;
+    gap: 14px;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .form-section:first-child { padding-top: 0; }
+  .form-section:last-of-type { border-bottom: none; padding-bottom: 4px; }
+  .step-num {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 12.5px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 2px;
+  }
+  .step-body { flex: 1; min-width: 0; }
+  .step-body label:first-child { margin-top: 0; }
+  .toggle-chip {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-top: 14px;
+    padding: 10px 14px;
+    background: var(--accent-soft);
+    border-radius: 10px;
+    font-size: 13.5px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .toggle-chip input { width: auto; margin: 0; }
+  #submit-btn { width: 100%; text-align: center; font-size: 16px; padding: 14px; }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #14151b;

@@ -353,22 +353,27 @@ def reset_web_history():
         return False
 
 
-def fetch_web_history(limit=200):
-    """마이페이지에 보여줄 누적 검색 기록을 최신순으로 가져옵니다."""
+def fetch_web_history(page=1, per_page=20, min_score=0, top_only=False):
+    """
+    마이페이지에 보여줄 누적 검색 기록을 최신순으로, 필터/페이지 단위로 가져옵니다.
+    (papers, total_count) 튜플을 반환합니다.
+    """
     if not _supabase_client:
-        return []
+        return [], 0
     try:
-        response = (
-            _supabase_client.table("web_papers")
-            .select("*")
-            .order("created_at", desc=True)
-            .limit(limit)
-            .execute()
-        )
-        return response.data
+        query = _supabase_client.table("web_papers").select("*", count="exact")
+        if min_score:
+            query = query.gte("relevance_score", min_score)
+        if top_only:
+            query = query.or_("journal.ilike.nature%,journal.ilike.science%")
+
+        start = (page - 1) * per_page
+        end = start + per_page - 1
+        response = query.order("created_at", desc=True).range(start, end).execute()
+        return response.data, (response.count or 0)
     except Exception as e:
         print(f"[경고] web_papers 조회 실패: {e}")
-        return []
+        return [], 0
 
 
 def run_search(keywords, lab_profile, days_back=7, min_score=70, include_rss=True):
