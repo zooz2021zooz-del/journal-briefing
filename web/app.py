@@ -184,6 +184,16 @@ def mypage_reset():
     return redirect(url_for("mypage"))
 
 
+_email_jobs = {}
+_email_jobs_lock = threading.Lock()
+
+
+def _run_email_job(job_id, recipient, subject, papers):
+    ok, err = send_shared_email(recipient, subject, papers)
+    with _email_jobs_lock:
+        _email_jobs[job_id] = {"status": "done", "success": ok, "error": err, "created_at": time.time()}
+
+
 @app.route("/send-email", methods=["POST"])
 def send_email_route():
     data = request.get_json(silent=True) or {}
@@ -191,8 +201,26 @@ def send_email_route():
     subject = (data.get("subject") or "논문 공유").strip()
     papers = data.get("papers") or []
 
-    ok, err = send_shared_email(recipient, subject, papers)
-    return jsonify({"success": ok, "error": err})
+    with _email_jobs_lock:
+        stale = [jid for jid, job in _email_jobs.items() if time.time() - job.get("created_at", 0) > _JOB_TTL_SECONDS]
+        for jid in stale:
+            _email_jobs.pop(jid, None)
+        job_id = uuid.uuid4().hex
+        _email_jobs[job_id] = {"status": "running", "created_at": time.time()}
+
+    thread = threading.Thread(target=_run_email_job, args=(job_id, recipient, subject, papers), daemon=True)
+    thread.start()
+
+    return jsonify({"job_id": job_id})
+
+
+@app.route("/send-email-status/<job_id>")
+def send_email_status(job_id):
+    with _email_jobs_lock:
+        job = _email_jobs.get(job_id)
+    if not job:
+        return jsonify({"status": "not_found"})
+    return jsonify(job)
 
 
 if __name__ == "__main__":
