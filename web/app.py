@@ -152,7 +152,7 @@ def search_result(job_id):
     )
 
 
-MYPAGE_PER_PAGE = 20
+MYPAGE_PER_PAGE = 5
 
 
 @app.route("/mypage")

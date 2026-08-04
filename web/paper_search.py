@@ -5,11 +5,8 @@
 """
 
 import os
-import smtplib
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 import feedparser
 import requests
@@ -19,8 +16,11 @@ from supabase import create_client
 OPENALEX_API_KEY = os.environ.get("OPENALEX_API_KEY")
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
-GMAIL_ADDRESS = os.environ.get("GMAIL_ADDRESS")
-GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD")
+# Render 등 일부 배포 환경은 아웃바운드 SMTP(465/587)를 막아둬서, 웹앱의 이메일 발송은
+# HTTPS 기반인 Resend API를 사용합니다. (스케줄러의 send_briefing.py는 로컬에서 도니
+# 여전히 Gmail SMTP를 그대로 씁니다 - 별개 경로)
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL") or "onboarding@resend.dev"
 
 _supabase_client = None
 if SUPABASE_URL and SUPABASE_KEY:
@@ -309,39 +309,34 @@ def build_email_html(papers, heading):
 
 
 def send_shared_email(recipient, subject, papers):
-    """선택된 논문 목록을 HTML 이메일로 즉시 발송합니다. (성공여부, 오류메시지) 튜플을 반환합니다."""
-    if not GMAIL_ADDRESS or not GMAIL_APP_PASSWORD:
-        return False, "GMAIL_ADDRESS / GMAIL_APP_PASSWORD 환경변수가 설정되어 있지 않아요."
+    """선택된 논문 목록을 Resend API로 HTML 이메일 발송합니다. (성공여부, 오류메시지) 튜플을 반환합니다."""
+    if not RESEND_API_KEY:
+        return False, "RESEND_API_KEY 환경변수가 설정되어 있지 않아요."
     if not recipient or "@" not in recipient:
         return False, "받는 사람 이메일 주소가 올바르지 않아요."
     if not papers:
         return False, "보낼 논문이 없어요."
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = GMAIL_ADDRESS
-    msg["To"] = recipient
-    msg.attach(MIMEText(build_email_html(papers, subject), "html"))
-
-    # 일부 배포 환경(Render 등)은 465(SMTPS)를 막아둔 경우가 있어,
-    # 465(SSL)가 막혀 있으면 587(STARTTLS)로 한 번 더 시도합니다.
-    last_error = None
-    for port, use_ssl in ((465, True), (587, False)):
-        try:
-            if use_ssl:
-                server = smtplib.SMTP_SSL("smtp.gmail.com", port, timeout=20)
-            else:
-                server = smtplib.SMTP("smtp.gmail.com", port, timeout=20)
-                server.starttls()
-            with server:
-                server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
-                server.send_message(msg)
-            return True, None
-        except Exception as e:
-            last_error = e
-            continue
-
-    return False, str(last_error)
+    try:
+        response = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {RESEND_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": RESEND_FROM_EMAIL,
+                "to": [recipient],
+                "subject": subject,
+                "html": build_email_html(papers, subject),
+            },
+            timeout=20,
+        )
+        if response.status_code >= 400:
+            return False, f"Resend API 오류 ({response.status_code}): {response.text[:300]}"
+        return True, None
+    except requests.exceptions.RequestException as e:
+        return False, str(e)
 
 
 def is_top_journal(journal):
